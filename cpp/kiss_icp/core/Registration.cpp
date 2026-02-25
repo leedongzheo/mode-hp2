@@ -150,7 +150,7 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
                             buf.non_planar_count++;
                         }
                     }
-                } } else {
+                } else {
                     // Nếu không đủ điểm để chạy PCA:
                     // - Chế độ 0 (Hybrid) & 1 (Pt-2-Pt): Cứu vãn bằng cách đưa vào non_planar
                     // - Chế độ 2 (Pt-2-Plane): VỨT BỎ HOÀN TOÀN (Không làm gì cả)
