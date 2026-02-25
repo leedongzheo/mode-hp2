@@ -3,8 +3,8 @@ requires = ["scikit_build_core", "pybind11"]
 build-backend = "scikit_build_core.build"
 
 [project]
-# name = "kiss-icp"
-name = "hp2-icp"
+name = "kiss-icp"
+# name = "hp2-icp"
 version = "1.2.3"
 description = "Simple yet effective 3D LiDAR-Odometry registration pipeline"
 readme = "README.md"
