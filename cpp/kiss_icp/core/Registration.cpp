@@ -1,4 +1,3 @@
-%%writefile /mnt/my-genz-icp/6_mode-hp2_seq_04_base_0.13_0.01_0.2/cpp/kiss_icp/core/Registration.cpp
 #include "Registration.hpp"
 
 #include <Eigen/Eigenvalues>
