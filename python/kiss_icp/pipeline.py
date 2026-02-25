@@ -36,7 +36,12 @@ class OdometryPipeline:
         self._last = self._jump + self._n_scans
 
         # Config and output dir
-        self.config = load_config(config)
+        # --- [SỬA LỖI KIỂU DỮ LIỆU Ở ĐÂY] ---
+        if isinstance(config, KISSConfig):
+            self.config = config
+        else:
+            self.config = load_config(config)
+        # ------------------------------------
         self.results_dir = None
 
         # Pipeline
