@@ -298,11 +298,11 @@ Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
         }
 
         // [THÊM MỚI] In log ra màn hình
-        std::cout << "[DEBUG ICP] Mode: " << reg_mode_ 
-                  << " | Iter: " << j 
-                  << " | Alpha: " << alpha 
-                  << " | Planar pts: " << corr.planar_count 
-                  << " | Non-Planar pts: " << corr.non_planar_count << std::endl;
+        // std::cout << "[DEBUG ICP] Mode: " << reg_mode_ 
+        //           << " | Iter: " << j 
+        //           << " | Alpha: " << alpha 
+        //           << " | Planar pts: " << corr.planar_count 
+        //           << " | Non-Planar pts: " << corr.non_planar_count << std::endl;
 
         auto [JTJ, JTr] = BuildHybridLinearSystemParallel(corr, kernel, alpha);
 
