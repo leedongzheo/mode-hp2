@@ -12,6 +12,7 @@ from pyquaternion import Quaternion
 from kiss_icp.kiss_icp import KissICP
 # Import thêm to_kiss_config
 from kiss_icp.config import load_config, write_config, to_kiss_config 
+from kiss_icp.config.parser import KISSConfig # [THÊM MỚI] Import
 from kiss_icp.metrics import absolute_trajectory_error, sequence_error
 from kiss_icp.tools.pipeline_results import PipelineResults
 from kiss_icp.tools.progress_bar import get_progress_bar
