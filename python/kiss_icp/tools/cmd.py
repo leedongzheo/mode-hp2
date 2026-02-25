@@ -176,11 +176,18 @@ def kiss_icp_pipeline(
         callback=version_callback,
         is_eager=True,
     ),
-    # --- [SỬA ĐỔI] Tham số Adaptive Threshold dạng Tuple ---
     adaptive_params: Optional[Tuple[float, float, float]] = typer.Option(
         None,
         "--base",
         help="[Optional] Override Adaptive Planarity: <base> <min_thr> <max_thr>",
+        rich_help_panel="Hybrid Options",
+        show_default=False,
+    ),
+    # [THÊM MỚI] Khai báo cờ --mode
+    reg_mode: Optional[int] = typer.Option(
+        None,
+        "--mode",
+        help="[Optional] ICP Mode. 0: Hybrid, 1: Point-to-Point, 2: Point-to-Plane",
         rich_help_panel="Hybrid Options",
         show_default=False,
     ),
@@ -211,6 +218,10 @@ def kiss_icp_pipeline(
         pipeline_config.adaptive_threshold.min_planarity_thr = adaptive_params[1]
         pipeline_config.adaptive_threshold.max_planarity_thr = adaptive_params[2]
         print(f"[INFO] Using CLI Adaptive Params: base={adaptive_params[0]}, min={adaptive_params[1]}, max={adaptive_params[2]}")
+
+    # [THÊM MỚI] Ghi đè tham số nếu người dùng nhập --mode từ terminal
+    if reg_mode is not None:
+        pipeline_config.registration.reg_mode = reg_mode
 
     OdometryPipeline(
         dataset=dataset_factory(
