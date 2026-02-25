@@ -1,3 +1,4 @@
+%%writefile /mnt/my-genz-icp/6_mode-hp2_seq_04_base_0.13_0.01_0.2/cpp/kiss_icp/core/Registration.cpp
 #include "Registration.hpp"
 
 #include <Eigen/Eigenvalues>
@@ -83,7 +84,6 @@ void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector3d> &points
 }
 
 // -------------------- Parallel Hybrid Data Association --------------------
-// [SỬA LẠI] Thêm reg_mode để quyết định ném điểm vào mảng nào
 HybridCorrespondence ComputeHybridCorrespondencesParallel(
     const std::vector<Eigen::Vector3d>& source_points,
     const kiss_icp::VoxelHashMap& voxel_map,
@@ -117,28 +117,23 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
                 auto [closest, neighbors, dist] = voxel_map.GetClosestNeighborAndNeighbors(pt);
                 if (dist > max_correspondence_distance) continue;
 
-                // CHẾ ĐỘ 1: TẤT CẢ LÀ POINT-TO-POINT
                 if (reg_mode == 1) {
                     buf.src_non_planar.push_back(pt);
                     buf.tgt_non_planar.push_back(closest);
                     buf.non_planar_count++;
-                    continue; // Bỏ qua tính PCA cho nhanh
+                    continue; 
                 }
 
-                // CHẾ ĐỘ 0 (HYBRID) & CHẾ ĐỘ 2 (TẤT CẢ POINT-TO-PLANE)
                 if (neighbors.size() >= 20) {
-                    // Chạy PCA để lấy pháp tuyến
                     auto [is_planar, normal] = EstimateNormalAndPlanarityC1(neighbors, base, min_thr, max_thr);
                     
                     if (reg_mode == 2) {
-                        // CHẾ ĐỘ 2: Mặc kệ điểm có phẳng hay gồ ghề, ép tất cả vào Planar
                         buf.src_planar.push_back(pt);
                         buf.tgt_planar.push_back(closest);
                         buf.normals.push_back(normal);
                         buf.planar_count++;
                     } 
                     else {
-                        // CHẾ ĐỘ 0: Hybrid phân loại rạch ròi
                         if (is_planar) {
                             buf.src_planar.push_back(pt);
                             buf.tgt_planar.push_back(closest);
@@ -151,9 +146,6 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
                         }
                     }
                 } else {
-                    // Nếu không đủ điểm để chạy PCA:
-                    // - Chế độ 0 (Hybrid) & 1 (Pt-2-Pt): Cứu vãn bằng cách đưa vào non_planar
-                    // - Chế độ 2 (Pt-2-Plane): VỨT BỎ HOÀN TOÀN (Không làm gì cả)
                     if (reg_mode != 2) {
                         buf.src_non_planar.push_back(pt);
                         buf.tgt_non_planar.push_back(closest);
@@ -164,7 +156,6 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
         }
     );
 
-    // Merge
     HybridCorrespondence out;
     size_t total_planar = 0, total_nonplanar = 0;
     for (auto& buf : tls) {
@@ -208,7 +199,6 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildHybridLinearSystemParallel(
 
     const double kernel2 = kernel * kernel;
 
-    // Point-to-plane
     Accum acc_plane = tbb::parallel_reduce(
         tbb::blocked_range<size_t>(0, corr.src_planar.size()),
         Accum{},
@@ -230,7 +220,6 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildHybridLinearSystemParallel(
         [](Accum a, const Accum& b)->Accum { a.join(b); return a; }
     );
 
-    // Point-to-point
     Accum acc_point = tbb::parallel_reduce(
         tbb::blocked_range<size_t>(0, corr.src_non_planar.size()),
         Accum{},
@@ -260,7 +249,6 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildHybridLinearSystemParallel(
 // ============================ kiss_icp namespace ============================
 namespace kiss_icp {
 
-// [SỬA LẠI] Cập nhật constructor để nhận reg_mode_
 Registration::Registration(int max_num_iteration, double convergence_criterion, int max_num_threads,
                            double adaptive_base, double min_planarity_thr, double max_planarity_thr,
                            int reg_mode)
@@ -271,14 +259,12 @@ Registration::Registration(int max_num_iteration, double convergence_criterion, 
       max_planarity_thr_(max_planarity_thr),
       reg_mode_(reg_mode) {
 
-    // Giới hạn số luồng TBB
     if (max_num_threads > 0) {
         static tbb::global_control gc(tbb::global_control::max_allowed_parallelism, max_num_threads);
         (void)gc; 
     }
 }
 
-// [SỬA LẠI] Trả về 2 mảng điểm cho Visualizer
 std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>> 
 Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
                                const VoxelHashMap &voxel_map,
@@ -297,28 +283,30 @@ Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
     Sophus::SE3d T_icp;
     for (int j = 0; j < max_num_iterations_; ++j) {
         
-        // Truyền reg_mode_ xuống hàm tính toán
         auto corr = ComputeHybridCorrespondencesParallel(
             source, voxel_map, max_distance, 
             adaptive_base_, min_planarity_thr_, max_planarity_thr_, reg_mode_
         );
 
-        // --- XÉT ALPHA DỰA TRÊN CHẾ ĐỘ ---
         double alpha = 0.5;
         if (reg_mode_ == 1) {
-            alpha = 0.0; // Toàn bộ là Point-to-Point
+            alpha = 0.0; 
         } else if (reg_mode_ == 2) {
-            alpha = 1.0; // Toàn bộ là Point-to-Plane
+            alpha = 1.0; 
         } else {
-            // Chế độ 0 (Hybrid): Tính alpha động
             const double denom = static_cast<double>(corr.planar_count + corr.non_planar_count);
             alpha = (denom > 0.0) ? static_cast<double>(corr.planar_count) / denom : 0.5;
         }
 
-        // Build linear system
+        // [THÊM MỚI] In log ra màn hình
+        std::cout << "[DEBUG ICP] Mode: " << reg_mode_ 
+                  << " | Iter: " << j 
+                  << " | Alpha: " << alpha 
+                  << " | Planar pts: " << corr.planar_count 
+                  << " | Non-Planar pts: " << corr.non_planar_count << std::endl;
+
         auto [JTJ, JTr] = BuildHybridLinearSystemParallel(corr, kernel, alpha);
 
-        // Solve
         Eigen::Vector6d dx = JTJ.ldlt().solve(-JTr);
         Sophus::SE3d delta = Sophus::SE3d::exp(dx);
 
