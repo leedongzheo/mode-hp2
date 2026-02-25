@@ -22,13 +22,13 @@ class RegistrationConfig(BaseModel):
     max_num_threads: Optional[int] = 0  # 0 means automatic
     # [THÊM MỚI] Biến cấu hình chế độ ICP
     # 0: Hybrid, 1: Point-to-Point, 2: Point-to-Plane
-    reg_mode: int = 2
+    reg_mode: int = 0
 
 
 class AdaptiveThresholdConfig(BaseModel):
     fixed_threshold: Optional[float] = None
     initial_threshold: float = 2.0
     min_motion_th: float = 0.1
-    adaptive_base: float = 0.06
-    min_planarity_thr: float = 0.001
+    adaptive_base: float = 0.13
+    min_planarity_thr: float = 0.01
     max_planarity_thr: float = 0.2
