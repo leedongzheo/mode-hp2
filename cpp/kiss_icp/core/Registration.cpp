@@ -288,14 +288,14 @@ Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
         );
 
         double alpha = 0.5;
-        if (reg_mode_ == 1) {
-            alpha = 0.0; 
-        } else if (reg_mode_ == 2) {
-            alpha = 1.0; 
-        } else {
-            const double denom = static_cast<double>(corr.planar_count + corr.non_planar_count);
-            alpha = (denom > 0.0) ? static_cast<double>(corr.planar_count) / denom : 0.5;
-        }
+        // if (reg_mode_ == 1) {
+        //     alpha = 0.0; 
+        // } else if (reg_mode_ == 2) {
+        //     alpha = 1.0; 
+        // } else {
+        //     const double denom = static_cast<double>(corr.planar_count + corr.non_planar_count);
+        //     alpha = (denom > 0.0) ? static_cast<double>(corr.planar_count) / denom : 0.5;
+        // }
 
         // [THÊM MỚI] In log ra màn hình
         // std::cout << "[DEBUG ICP] Mode: " << reg_mode_ 
