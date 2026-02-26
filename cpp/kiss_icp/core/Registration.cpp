@@ -27,7 +27,7 @@ using Vector6d   = Eigen::Matrix<double, 6, 1>;
 namespace {
 
 // TRẢ LẠI NEIGHBOR = 5 ĐỂ BẮT CHIẾC LÁ
-constexpr size_t MIN_POINTS_PCA = 5;
+constexpr size_t MIN_POINTS_PCA = 20;
 constexpr double MIN_POINTS_PCA_D = static_cast<double>(MIN_POINTS_PCA);
 
 // Ngưỡng Z cục bộ (Local Z) để tách mặt đất
