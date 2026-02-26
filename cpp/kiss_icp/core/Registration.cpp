@@ -25,7 +25,8 @@ using Vector6d   = Eigen::Matrix<double, 6, 1>;
 }  // namespace Eigen
 
 namespace {
-
+constexpr size_t MIN_POINTS_PCA = 5;
+constexpr double MIN_POINTS_PCA_D = static_cast<double>(MIN_POINTS_PCA);
 inline double square(double x) { return x * x; }
 
 // -------------------- Hybrid correspondences structure --------------------
@@ -37,7 +38,7 @@ struct HybridCorrespondence {
 
 double ComputeAdaptivePlaharityThreshold(const std::vector<Eigen::Vector3d>& neighbors, 
                                          double base, double min_thr, double max_thr){
-    double thr = base * 20.0 / std::max(20.0, static_cast<double>(neighbors.size()));
+    double thr = base * MIN_POINTS_PCA_D / std::max(MIN_POINTS_PCA_D, static_cast<double>(neighbors.size()));
     return std::clamp(thr, min_thr, max_thr);
 }
 
@@ -123,7 +124,7 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
                     continue; 
                 }
 
-                if (neighbors.size() >= 20) {
+                if (neighbors.size() >= MIN_POINTS_PCA) {
                     auto [is_planar, normal] = EstimateNormalAndPlanarityC1(neighbors, base, min_thr, max_thr);
                     
                     if (reg_mode == 2) {
