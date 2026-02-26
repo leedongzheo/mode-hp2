@@ -288,7 +288,7 @@ Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
             adaptive_base_, min_planarity_thr_, max_planarity_thr_, reg_mode_
         );
 
-        // double alpha = 0.5;
+        double alpha = 0.5;
         if (reg_mode_ == 1) {
             alpha = 0.0; 
         } else if (reg_mode_ == 2) {
