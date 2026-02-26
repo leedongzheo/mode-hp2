@@ -27,7 +27,7 @@ using Vector6d   = Eigen::Matrix<double, 6, 1>;
 namespace {
 
 // Khai báo hằng số như đã bàn ở phần trước
-constexpr size_t MIN_POINTS_PCA = 5;
+constexpr size_t MIN_POINTS_PCA = 20;
 constexpr double MIN_POINTS_PCA_D = static_cast<double>(MIN_POINTS_PCA);
 
 inline double square(double x) { return x * x; }
