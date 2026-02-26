@@ -5,19 +5,19 @@ from pydantic import BaseModel
 
 class DataConfig(BaseModel):
     max_range: float = 100.0
-    min_range: float = 0.0
-    # min_range: float = 0.5
+    # min_range: float = 0.0
+    min_range: float = 0.5
     deskew: bool = True
 
 
 class MappingConfig(BaseModel):
     voxel_size: Optional[float] = None  # default: take it from data
-    max_points_per_voxel: int = 20
-    # max_points_per_voxel: int = 1
+    # max_points_per_voxel: int = 20
+    max_points_per_voxel: int = 1
 
 class RegistrationConfig(BaseModel):
-    max_num_iterations: Optional[int] = 500
-    # max_num_iterations: Optional[int] = 150
+    # max_num_iterations: Optional[int] = 500
+    max_num_iterations: Optional[int] = 150
     convergence_criterion: Optional[float] = 0.0001
     max_num_threads: Optional[int] = 0  # 0 means automatic
     # [THÊM MỚI] Biến cấu hình chế độ ICP
