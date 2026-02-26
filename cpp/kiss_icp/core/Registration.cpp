@@ -25,14 +25,22 @@ using Vector6d   = Eigen::Matrix<double, 6, 1>;
 }  // namespace Eigen
 
 namespace {
+
+// Khai báo hằng số như đã bàn ở phần trước
 constexpr size_t MIN_POINTS_PCA = 5;
 constexpr double MIN_POINTS_PCA_D = static_cast<double>(MIN_POINTS_PCA);
+
 inline double square(double x) { return x * x; }
 
 // -------------------- Hybrid correspondences structure --------------------
 struct HybridCorrespondence {
     std::vector<Eigen::Vector3d> src_planar, tgt_planar, normals;
     std::vector<Eigen::Vector3d> src_non_planar, tgt_non_planar;
+    
+    // [ĐỘT PHÁ] Lưu trữ trọng số (alpha) RIÊNG BIỆT cho từng điểm
+    std::vector<double> weights_planar;
+    std::vector<double> weights_non_planar;
+    
     size_t planar_count = 0, non_planar_count = 0;
 };
 
@@ -42,7 +50,8 @@ double ComputeAdaptivePlaharityThreshold(const std::vector<Eigen::Vector3d>& nei
     return std::clamp(thr, min_thr, max_thr);
 }
 
-std::tuple<bool, Eigen::Vector3d> EstimateNormalAndPlanarityC1(
+// [ĐỘT PHÁ] Trả về thêm 1 biến 'double' là trọng số của riêng điểm đó
+std::tuple<bool, Eigen::Vector3d, double> EstimateNormalAndPlanarityC1(
     const std::vector<Eigen::Vector3d>& neighbors,
     double base, double min_thr, double max_thr)
 {
@@ -63,15 +72,20 @@ std::tuple<bool, Eigen::Vector3d> EstimateNormalAndPlanarityC1(
 
     const double lambda0 = evals(0);
     const double sumlam  = evals(0) + evals(1) + evals(2) + 1e-12;
-    const double planarity = lambda0 / sumlam;
+    const double planarity = lambda0 / sumlam; // Nằm trong khoảng [0, 1/3]
 
     double adaptive_thr = ComputeAdaptivePlaharityThreshold(neighbors, base, min_thr, max_thr);
     const bool is_planar = planarity < adaptive_thr;
     Eigen::Vector3d normal = evecs.col(0);
-    return {is_planar, normal};
+    
+    // Tính trọng số Point-wise. 
+    // Planarity = 0 (Siêu phẳng) -> w_plane = 1.0
+    // Planarity = 0.333 (Hình cầu/Rác) -> w_plane = 0.0
+    double w_plane = std::clamp(1.0 - 3.0 * planarity, 0.0, 1.0);
+    
+    return {is_planar, normal, w_plane};
 }
 
-// -------------------- Parallel TransformPoints --------------------
 void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector3d> &points) {
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, points.size()),
@@ -83,7 +97,6 @@ void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector3d> &points
     );
 }
 
-// -------------------- Parallel Hybrid Data Association --------------------
 HybridCorrespondence ComputeHybridCorrespondencesParallel(
     const std::vector<Eigen::Vector3d>& source_points,
     const kiss_icp::VoxelHashMap& voxel_map,
@@ -93,17 +106,18 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
     struct LocalBuf {
         std::vector<Eigen::Vector3d> src_planar, tgt_planar, normals;
         std::vector<Eigen::Vector3d> src_non_planar, tgt_non_planar;
+        std::vector<double> weights_planar, weights_non_planar; // Thêm mảng chứa trọng số
         size_t planar_count = 0, non_planar_count = 0;
 
         void reserve_hint(size_t n) {
             const size_t hint = std::max<size_t>(32, n / 2);
             src_planar.reserve(hint);  tgt_planar.reserve(hint); normals.reserve(hint);
             src_non_planar.reserve(hint); tgt_non_planar.reserve(hint);
+            weights_planar.reserve(hint); weights_non_planar.reserve(hint);
         }
     };
 
     tbb::enumerable_thread_specific<LocalBuf> tls;
-
     for (auto it = tls.begin(); it != tls.end(); ++it) {
         it->reserve_hint(source_points.size());
     }
@@ -117,31 +131,40 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
                 auto [closest, neighbors, dist] = voxel_map.GetClosestNeighborAndNeighbors(pt);
                 if (dist > max_correspondence_distance) continue;
 
+                // CHẾ ĐỘ 1: Ép 100% Point-to-Point
                 if (reg_mode == 1) {
                     buf.src_non_planar.push_back(pt);
                     buf.tgt_non_planar.push_back(closest);
+                    buf.weights_non_planar.push_back(1.0); // Trọng số 100%
                     buf.non_planar_count++;
                     continue; 
                 }
 
                 if (neighbors.size() >= MIN_POINTS_PCA) {
-                    auto [is_planar, normal] = EstimateNormalAndPlanarityC1(neighbors, base, min_thr, max_thr);
+                    // Lấy ra trọng số cá nhân (w_plane)
+                    auto [is_planar, normal, w_plane] = EstimateNormalAndPlanarityC1(neighbors, base, min_thr, max_thr);
                     
+                    // CHẾ ĐỘ 2: Ép 100% Point-to-Plane
                     if (reg_mode == 2) {
                         buf.src_planar.push_back(pt);
                         buf.tgt_planar.push_back(closest);
                         buf.normals.push_back(normal);
+                        buf.weights_planar.push_back(1.0); // Trọng số 100%
                         buf.planar_count++;
                     } 
+                    // CHẾ ĐỘ 0: Hybrid với Point-wise Weighting
                     else {
                         if (is_planar) {
                             buf.src_planar.push_back(pt);
                             buf.tgt_planar.push_back(closest);
                             buf.normals.push_back(normal);
+                            buf.weights_planar.push_back(w_plane); // Gắn trọng số phẳng
                             buf.planar_count++;
                         } else {
                             buf.src_non_planar.push_back(pt);
                             buf.tgt_non_planar.push_back(closest);
+                            // Điểm càng ít phẳng -> w_plane càng nhỏ -> Trọng số Pt2Pt càng lớn
+                            buf.weights_non_planar.push_back(1.0 - w_plane); 
                             buf.non_planar_count++;
                         }
                     }
@@ -149,6 +172,7 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
                     if (reg_mode != 2) {
                         buf.src_non_planar.push_back(pt);
                         buf.tgt_non_planar.push_back(closest);
+                        buf.weights_non_planar.push_back(1.0); // Điểm lẻ loi -> Pt2Pt 100%
                         buf.non_planar_count++;
                     }
                 }
@@ -162,11 +186,8 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
         total_planar    += buf.planar_count;
         total_nonplanar += buf.non_planar_count;
     }
-    out.src_planar.reserve(total_planar);
-    out.tgt_planar.reserve(total_planar);
-    out.normals.reserve(total_planar);
-    out.src_non_planar.reserve(total_nonplanar);
-    out.tgt_non_planar.reserve(total_nonplanar);
+    out.src_planar.reserve(total_planar); out.tgt_planar.reserve(total_planar); out.normals.reserve(total_planar); out.weights_planar.reserve(total_planar);
+    out.src_non_planar.reserve(total_nonplanar); out.tgt_non_planar.reserve(total_nonplanar); out.weights_non_planar.reserve(total_nonplanar);
 
     for (auto& buf : tls) {
         out.planar_count     += buf.planar_count;
@@ -175,16 +196,18 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
         out.src_planar.insert(out.src_planar.end(), buf.src_planar.begin(), buf.src_planar.end());
         out.tgt_planar.insert(out.tgt_planar.end(), buf.tgt_planar.begin(), buf.tgt_planar.end());
         out.normals.insert(out.normals.end(), buf.normals.begin(), buf.normals.end());
+        out.weights_planar.insert(out.weights_planar.end(), buf.weights_planar.begin(), buf.weights_planar.end());
 
         out.src_non_planar.insert(out.src_non_planar.end(), buf.src_non_planar.begin(), buf.src_non_planar.end());
         out.tgt_non_planar.insert(out.tgt_non_planar.end(), buf.tgt_non_planar.begin(), buf.tgt_non_planar.end());
+        out.weights_non_planar.insert(out.weights_non_planar.end(), buf.weights_non_planar.begin(), buf.weights_non_planar.end());
     }
     return out;
 }
 
-// -------------------- Parallel BuildLinearSystem --------------------
+// [ĐỘT PHÁ] Hàm Build Matrix đã bỏ biến 'alpha' toàn cục
 std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildHybridLinearSystemParallel(
-    const HybridCorrespondence& corr, double kernel, double alpha)
+    const HybridCorrespondence& corr, double kernel)
 {
     struct Accum {
         Eigen::Matrix<double,6,6> JTJ;
@@ -212,8 +235,10 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildHybridLinearSystemParallel(
                 J.block<1,3>(0,3) = (corr.src_planar[i].cross(n)).transpose();
 
                 const double w = kernel2 / square(kernel + residual * residual);
-                a.JTJ.noalias() += alpha * (J.transpose() * (w * J));
-                a.JTr.noalias() += alpha * (J.transpose() * (w * residual));
+                const double point_alpha = corr.weights_planar[i]; // Lấy trọng số cá nhân
+                
+                a.JTJ.noalias() += point_alpha * (J.transpose() * (w * J));
+                a.JTr.noalias() += point_alpha * (J.transpose() * (w * residual));
             }
             return a;
         },
@@ -231,8 +256,10 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildHybridLinearSystemParallel(
                 J.block<3,3>(0,3) = -Sophus::SO3d::hat(corr.src_non_planar[i]);
 
                 const double w = kernel2 / square(kernel + rvec.squaredNorm());
-                a.JTJ.noalias() += (1.0 - alpha) * (J.transpose() * (w * J));
-                a.JTr.noalias() += (1.0 - alpha) * (J.transpose() * (w * rvec));
+                const double point_alpha = corr.weights_non_planar[i]; // Lấy trọng số cá nhân
+                
+                a.JTJ.noalias() += point_alpha * (J.transpose() * (w * J));
+                a.JTr.noalias() += point_alpha * (J.transpose() * (w * rvec));
             }
             return a;
         },
@@ -288,24 +315,10 @@ Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
             adaptive_base_, min_planarity_thr_, max_planarity_thr_, reg_mode_
         );
 
-        double alpha = 0.5;
-        if (reg_mode_ == 1) {
-            alpha = 0.0; 
-        } else if (reg_mode_ == 2) {
-            alpha = 1.0; 
-        } else {
-            const double denom = static_cast<double>(corr.planar_count + corr.non_planar_count);
-            alpha = (denom > 0.0) ? static_cast<double>(corr.planar_count) / denom : 0.5;
-        }
+        // [XÓA BỎ HOÀN TOÀN TÍNH TOÁN ALPHA TOÀN CỤC Ở ĐÂY]
 
-        // [THÊM MỚI] In log ra màn hình
-        // std::cout << "[DEBUG ICP] Mode: " << reg_mode_ 
-        //           << " | Iter: " << j 
-        //           << " | Alpha: " << alpha 
-        //           << " | Planar pts: " << corr.planar_count 
-        //           << " | Non-Planar pts: " << corr.non_planar_count << std::endl;
-
-        auto [JTJ, JTr] = BuildHybridLinearSystemParallel(corr, kernel, alpha);
+        // Gọi hàm Build (Không truyền biến alpha nữa)
+        auto [JTJ, JTr] = BuildHybridLinearSystemParallel(corr, kernel);
 
         Eigen::Vector6d dx = JTJ.ldlt().solve(-JTr);
         Sophus::SE3d delta = Sophus::SE3d::exp(dx);
