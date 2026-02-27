@@ -28,7 +28,8 @@ class KISSConfig:
     
     # [THÊM MỚI] Khai báo biến reg_mode (0: Hybrid, 1: Pt2Pt, 2: Pt2Plane)
     reg_mode: int = 0
-    
+    # [THÊM MỚI Ở ĐÂY] Khai báo số điểm PCA
+    min_points_pca: int = 5
     def _to_cpp(self):
         """Chuyển đổi Config Python sang C++ Struct"""
         config = kiss_icp_pybind._KISSConfig()
@@ -50,7 +51,8 @@ class KISSConfig:
         
         # [THÊM MỚI] Gán reg_mode xuống C++
         config.reg_mode = self.reg_mode
-        
+        # [THÊM MỚI Ở ĐÂY] Gán min_points_pca xuống C++
+        config.min_points_pca = self.min_points_pca
         return config
 
 
