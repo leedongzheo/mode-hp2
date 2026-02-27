@@ -45,7 +45,9 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
         .def_readwrite("min_planarity_thr", &pipeline::KISSConfig::min_planarity_thr)
         .def_readwrite("max_planarity_thr", &pipeline::KISSConfig::max_planarity_thr)
         // [THÊM MỚI] Expose biến reg_mode cho Python
-        .def_readwrite("reg_mode", &pipeline::KISSConfig::reg_mode);
+        .def_readwrite("reg_mode", &pipeline::KISSConfig::reg_mode)
+        // [THÊM MỚI Ở ĐÂY] Expose biến min_points_pca cho Python
+        .def_readwrite("min_points_pca", &pipeline::KISSConfig::min_points_pca);
 
     // 2. Binding Pipeline Class (Giống _GenZICP)
     py::class_<pipeline::KissICP>(m, "_KissICP")
