@@ -77,11 +77,13 @@ class OdometryPipeline:
         # [THÊM MỚI] In log ra màn hình để biết đang chạy Mode nào
         mode_str = ["Hybrid (Dynamic Alpha)", "Point-to-Point (Alpha=0)", "Point-to-Plane (Alpha=1)"]
         idx_mode = self.config.registration.reg_mode
+        # [SỬA LẠI LOG IN RA MÀN HÌNH Ở ĐÂY]
         print(f"\n[INFO] Starting {self.dataset_name} Sequence {self.dataset_sequence}")
         print(f"[INFO] Registration Mode: [{idx_mode}] {mode_str[idx_mode]}")
         print(f"[INFO] Adaptive Params: Base={self.config.adaptive_threshold.adaptive_base}, " 
               f"Min={self.config.adaptive_threshold.min_planarity_thr}, "
-              f"Max={self.config.adaptive_threshold.max_planarity_thr}\n")
+              f"Max={self.config.adaptive_threshold.max_planarity_thr}, "
+              f"PCA Neighbors(k)={self.config.registration.min_points_pca}\n")
         
         self._run_pipeline()
         self._run_evaluation()
