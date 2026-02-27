@@ -35,7 +35,7 @@ struct Registration {
     // [SỬA LẠI] Thêm reg_mode vào cuối hàm khởi tạo
     explicit Registration(int max_num_iteration, double convergence_criterion, int max_num_threads,
                           double adaptive_base, double min_planarity_thr, double max_planarity_thr,
-                          int reg_mode);
+                          int reg_mode, int min_points_pca);
 
     // [SỬA LẠI] Trả về Tuple (Pose, Planar Pts, Non-Planar Pts)
     std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>>
@@ -55,5 +55,6 @@ struct Registration {
     
     // [THÊM MỚI] Biến lưu chế độ: 0=Hybrid, 1=Point2Point, 2=Point2Plane
     int reg_mode_; 
+    int min_points_pca_;
 };
 }  // namespace kiss_icp
