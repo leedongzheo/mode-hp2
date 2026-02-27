@@ -230,7 +230,10 @@ def kiss_icp_pipeline(
     # [THÊM MỚI] Ghi đè tham số nếu người dùng nhập --mode từ terminal
     if reg_mode is not None:
         pipeline_config.registration.reg_mode = reg_mode
-
+    # [THÊM MỚI Ở ĐÂY] Ghi đè tham số PCA nếu người dùng nhập --k từ terminal
+    if pca_points is not None:
+        pipeline_config.registration.min_points_pca = pca_points
+        print(f"[INFO] Using CLI PCA Neighbors (k): {pca_points}")
     OdometryPipeline(
         dataset=dataset_factory(
             dataloader=dataloader,
