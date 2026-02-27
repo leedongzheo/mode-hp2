@@ -25,8 +25,8 @@ using Vector6d   = Eigen::Matrix<double, 6, 1>;
 }  // namespace Eigen
 
 namespace {
-constexpr size_t MIN_POINTS_PCA = 5;
-constexpr double MIN_POINTS_PCA_D = static_cast<double>(MIN_POINTS_PCA);
+// [ĐÃ XÓA] constexpr size_t MIN_POINTS_PCA = 5;
+
 inline double square(double x) { return x * x; }
 
 // -------------------- Hybrid correspondences structure --------------------
@@ -36,15 +36,18 @@ struct HybridCorrespondence {
     size_t planar_count = 0, non_planar_count = 0;
 };
 
+// [SỬA LẠI] Thêm size_t min_points_pca làm tham số
 double ComputeAdaptivePlaharityThreshold(const std::vector<Eigen::Vector3d>& neighbors, 
-                                         double base, double min_thr, double max_thr){
-    double thr = base * MIN_POINTS_PCA_D / std::max(MIN_POINTS_PCA_D, static_cast<double>(neighbors.size()));
+                                         double base, double min_thr, double max_thr, size_t min_points_pca){
+    double min_points_pca_d = static_cast<double>(min_points_pca);
+    double thr = base * min_points_pca_d / std::max(min_points_pca_d, static_cast<double>(neighbors.size()));
     return std::clamp(thr, min_thr, max_thr);
 }
 
+// [SỬA LẠI] Thêm size_t min_points_pca làm tham số
 std::tuple<bool, Eigen::Vector3d> EstimateNormalAndPlanarityC1(
     const std::vector<Eigen::Vector3d>& neighbors,
-    double base, double min_thr, double max_thr)
+    double base, double min_thr, double max_thr, size_t min_points_pca)
 {
     Eigen::Vector3d mean = Eigen::Vector3d::Zero();
     for (const auto& pt : neighbors) mean += pt;
@@ -65,7 +68,8 @@ std::tuple<bool, Eigen::Vector3d> EstimateNormalAndPlanarityC1(
     const double sumlam  = evals(0) + evals(1) + evals(2) + 1e-12;
     const double planarity = lambda0 / sumlam;
 
-    double adaptive_thr = ComputeAdaptivePlaharityThreshold(neighbors, base, min_thr, max_thr);
+    // Truyền min_points_pca xuống hàm tính Threshold
+    double adaptive_thr = ComputeAdaptivePlaharityThreshold(neighbors, base, min_thr, max_thr, min_points_pca);
     const bool is_planar = planarity < adaptive_thr;
     Eigen::Vector3d normal = evecs.col(0);
     return {is_planar, normal};
@@ -84,11 +88,12 @@ void TransformPoints(const Sophus::SE3d &T, std::vector<Eigen::Vector3d> &points
 }
 
 // -------------------- Parallel Hybrid Data Association --------------------
+// [SỬA LẠI] Thêm size_t min_points_pca vào hàm gọi Map
 HybridCorrespondence ComputeHybridCorrespondencesParallel(
     const std::vector<Eigen::Vector3d>& source_points,
     const kiss_icp::VoxelHashMap& voxel_map,
     double max_correspondence_distance,
-    double base, double min_thr, double max_thr, int reg_mode)
+    double base, double min_thr, double max_thr, int reg_mode, size_t min_points_pca)
 {
     struct LocalBuf {
         std::vector<Eigen::Vector3d> src_planar, tgt_planar, normals;
@@ -124,8 +129,9 @@ HybridCorrespondence ComputeHybridCorrespondencesParallel(
                     continue; 
                 }
 
-                if (neighbors.size() >= MIN_POINTS_PCA) {
-                    auto [is_planar, normal] = EstimateNormalAndPlanarityC1(neighbors, base, min_thr, max_thr);
+                // [SỬA LẠI] Sử dụng biến min_points_pca thay vì hằng số
+                if (neighbors.size() >= min_points_pca) {
+                    auto [is_planar, normal] = EstimateNormalAndPlanarityC1(neighbors, base, min_thr, max_thr, min_points_pca);
                     
                     if (reg_mode == 2) {
                         buf.src_planar.push_back(pt);
@@ -249,15 +255,17 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildHybridLinearSystemParallel(
 // ============================ kiss_icp namespace ============================
 namespace kiss_icp {
 
+// [SỬA LẠI] Nạp min_points_pca vào hàm khởi tạo
 Registration::Registration(int max_num_iteration, double convergence_criterion, int max_num_threads,
                            double adaptive_base, double min_planarity_thr, double max_planarity_thr,
-                           int reg_mode)
+                           int reg_mode, int min_points_pca)
     : max_num_iterations_(max_num_iteration),
       convergence_criterion_(convergence_criterion),
       adaptive_base_(adaptive_base),
       min_planarity_thr_(min_planarity_thr),
       max_planarity_thr_(max_planarity_thr),
-      reg_mode_(reg_mode) {
+      reg_mode_(reg_mode),
+      min_points_pca_(min_points_pca) { // <-- Gán giá trị
 
     if (max_num_threads > 0) {
         static tbb::global_control gc(tbb::global_control::max_allowed_parallelism, max_num_threads);
@@ -283,9 +291,10 @@ Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
     Sophus::SE3d T_icp;
     for (int j = 0; j < max_num_iterations_; ++j) {
         
+        // [SỬA LẠI] Truyền min_points_pca_ xuống dưới
         auto corr = ComputeHybridCorrespondencesParallel(
             source, voxel_map, max_distance, 
-            adaptive_base_, min_planarity_thr_, max_planarity_thr_, reg_mode_
+            adaptive_base_, min_planarity_thr_, max_planarity_thr_, reg_mode_, min_points_pca_
         );
 
         double alpha = 0.5;
@@ -297,13 +306,6 @@ Registration::AlignPointsToMap(const std::vector<Eigen::Vector3d> &frame,
             const double denom = static_cast<double>(corr.planar_count + corr.non_planar_count);
             alpha = (denom > 0.0) ? static_cast<double>(corr.planar_count) / denom : 0.5;
         }
-
-        // [THÊM MỚI] In log ra màn hình
-        // std::cout << "[DEBUG ICP] Mode: " << reg_mode_ 
-        //           << " | Iter: " << j 
-        //           << " | Alpha: " << alpha 
-        //           << " | Planar pts: " << corr.planar_count 
-        //           << " | Non-Planar pts: " << corr.non_planar_count << std::endl;
 
         auto [JTJ, JTr] = BuildHybridLinearSystemParallel(corr, kernel, alpha);
 
