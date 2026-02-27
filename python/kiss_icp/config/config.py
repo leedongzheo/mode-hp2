@@ -31,6 +31,6 @@ class AdaptiveThresholdConfig(BaseModel):
     fixed_threshold: Optional[float] = None
     initial_threshold: float = 2.0
     min_motion_th: float = 0.1
-    adaptive_base: float = 0.13
-    min_planarity_thr: float = 0.01
+    adaptive_base: float = 0.12
+    min_planarity_thr: float = 0.001
     max_planarity_thr: float = 0.2
