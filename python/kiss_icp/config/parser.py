@@ -84,7 +84,8 @@ def to_kiss_config(config: KISSConfig) -> KISSRuntimeConfig:
     
     # [THÊM MỚI] Gán reg_mode xuống C++
     cpp_config.reg_mode = config.registration.reg_mode
-
+    # [THÊM MỚI Ở ĐÂY] Gán min_points_pca xuống C++
+    cpp_config.min_points_pca = config.registration.min_points_pca
     return KISSRuntimeConfig(
         max_range=config.data.max_range,
         min_range=config.data.min_range,
@@ -101,4 +102,6 @@ def to_kiss_config(config: KISSConfig) -> KISSRuntimeConfig:
         max_planarity_thr=config.adaptive_threshold.max_planarity_thr,
         # [THÊM MỚI] Truyền vào Dataclass
         reg_mode=config.registration.reg_mode,
+        # [THÊM MỚI Ở ĐÂY] Truyền vào Dataclass
+        min_points_pca=config.registration.min_points_pca,
     )
