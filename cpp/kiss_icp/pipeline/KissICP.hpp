@@ -36,8 +36,11 @@ struct KISSConfig {
     double min_planarity_thr = 0.001;
     double max_planarity_thr = 0.2;
     
-    // [THÊM MỚI] Biến chọn chế độ: 0=Hybrid, 1=Point2Point, 2=Point2Plane
+    // Biến chọn chế độ: 0=Hybrid, 1=Point2Point, 2=Point2Plane
     int reg_mode = 0; 
+
+    // [THÊM MỚI] Khai báo min_points_pca ở đây, giá trị mặc định là 5
+    int min_points_pca = 5; 
 };
 
 class KissICP {
@@ -56,7 +59,8 @@ public:
               config.adaptive_base,       
               config.min_planarity_thr,   
               config.max_planarity_thr,
-              config.reg_mode), // [THÊM MỚI] Truyền reg_mode vào Registration
+              config.reg_mode,
+              config.min_points_pca), // [THÊM MỚI] Truyền min_points_pca vào Registration
           local_map_(config.voxel_size, config.max_range, config.max_points_per_voxel),
           adaptive_threshold_(config.initial_threshold, config.min_motion_th, config.max_range) {}
 
