@@ -24,7 +24,7 @@ class RegistrationConfig(BaseModel):
     # 0: Hybrid, 1: Point-to-Point, 2: Point-to-Plane
     reg_mode: int = 0
     # [THÊM MỚI] Số điểm tối thiểu để chạy PCA
-    min_points_pca: int = 5
+    min_points_pca: int = 20
 
 
 class AdaptiveThresholdConfig(BaseModel):
