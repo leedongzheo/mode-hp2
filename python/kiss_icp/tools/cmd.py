@@ -191,6 +191,14 @@ def kiss_icp_pipeline(
         rich_help_panel="Hybrid Options",
         show_default=False,
     ),
+    # [THÊM MỚI Ở ĐÂY] Khai báo cờ --k cho số lượng điểm lân cận PCA
+    pca_points: Optional[int] = typer.Option(
+        None,
+        "--k", 
+        help="[Optional] Minimum points for PCA neighborhood (overrides config.py)",
+        rich_help_panel="Hybrid Options",
+        show_default=False,
+    ),
 ):
     # Attempt to guess some common file extensions
     if not dataloader:
