@@ -12,8 +12,8 @@
 
 // Quan trọng: Include header chứa class KissICP Pipeline
 #include "kiss_icp/pipeline/KissICP.hpp" 
-#include "kiss_icp/core/Preprocessing.hpp" // Cho hàm VoxelDownsample global
-#include "kiss_icp/core/VoxelHashMap.hpp"  // [THÊM MỚI] Cho class VoxelHashMap
+#include "kiss_icp/core/Preprocessing.hpp" // Cho class Preprocessor và hàm VoxelDownsample
+#include "kiss_icp/core/VoxelHashMap.hpp"  // Cho class VoxelHashMap
 #include "kiss_icp/metrics/Metrics.hpp"
 #include "stl_vector_eigen.h"
 
@@ -24,13 +24,13 @@ PYBIND11_MAKE_OPAQUE(std::vector<Eigen::Vector3d>);
 
 namespace kiss_icp {
 PYBIND11_MODULE(kiss_icp_pybind, m) {
-    // Helper để chuyển đổi vector Eigen sang Numpy nhanh chóng (như GenZ)
+    // Helper để chuyển đổi vector Eigen sang Numpy nhanh chóng
     pybind_eigen_vector_of_vector<Eigen::Vector3d>(
         m, "_Vector3dVector", "std::vector<Eigen::Vector3d>",
         py::py_array_to_vectors_double<Eigen::Vector3d>);
 
     // =========================================================================
-    // [THÊM MỚI] Binding cho VoxelHashMap (Dành cho mapping.py và slam.py)
+    // 1. Binding cho VoxelHashMap (Dành cho mapping.py và slam.py)
     // =========================================================================
     py::class_<VoxelHashMap> internal_map(m, "_VoxelHashMap", "VoxelHashMap Binding");
     internal_map
@@ -38,7 +38,6 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
              "voxel_size"_a, "max_distance"_a, "max_points_per_voxel"_a)
         .def("_clear", &VoxelHashMap::Clear)
         .def("_empty", &VoxelHashMap::Empty)
-        // Lambda xử lý _update vì Python truyền vào ma trận 4x4, còn C++ nhận Sophus::SE3d
         .def("_update", 
             [](VoxelHashMap &self, const std::vector<Eigen::Vector3d> &points, const Eigen::Matrix4d &T) {
                 Sophus::SE3d pose(T);
@@ -49,8 +48,25 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
         .def("_remove_far_away_points", &VoxelHashMap::RemovePointsFarFromLocation, "origin"_a)
         .def("_point_cloud", &VoxelHashMap::Pointcloud);
 
+    // =========================================================================
+    // [THÊM MỚI] 2. Binding cho Preprocessor (Dành cho preprocess.py và SLAM global mapping)
+    // =========================================================================
+    py::class_<Preprocessor> internal_preprocessor(m, "_Preprocessor", "Preprocessor Binding");
+    internal_preprocessor
+        .def(py::init<double, double, bool, int>(), 
+             "max_range"_a, "min_range"_a, "deskew"_a, "max_num_threads"_a)
+        .def(
+            "_preprocess",
+            [](const Preprocessor &self, const std::vector<Eigen::Vector3d> &points,
+               const std::vector<double> &timestamps, const Eigen::Matrix4d &relative_motion) {
+                Sophus::SE3d motion(relative_motion); // Ép kiểu từ Numpy(Matrix4d) sang Sophus::SE3d
+                return self.Preprocess(points, timestamps, motion);
+            },
+            "points"_a, "timestamps"_a, "relative_motion"_a);
 
-    // 1. Binding Config Struct (Giống _GenZConfig)
+    // =========================================================================
+    // 3. Binding Config Struct
+    // =========================================================================
     py::class_<pipeline::KISSConfig>(m, "_KISSConfig")
         .def(py::init<>())
         .def_readwrite("voxel_size", &pipeline::KISSConfig::voxel_size)
@@ -69,7 +85,9 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
         .def_readwrite("reg_mode", &pipeline::KISSConfig::reg_mode)
         .def_readwrite("min_points_pca", &pipeline::KISSConfig::min_points_pca);
 
-    // 2. Binding Pipeline Class (Giống _GenZICP)
+    // =========================================================================
+    // 4. Binding Pipeline Class
+    // =========================================================================
     py::class_<pipeline::KissICP>(m, "_KissICP")
         .def(py::init<const pipeline::KISSConfig &>(), "config"_a)
         .def("_register_frame", &pipeline::KissICP::RegisterFrame, "frame"_a, "timestamps"_a)
@@ -84,25 +102,22 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
         .def("_last_delta", [](pipeline::KissICP &self) {
             return self.delta().matrix();
         })
-        // ==========================================================
-        // [THÊM MỚI Ở ĐÂY] CÁC HÀM BỔ SUNG ĐỂ PROXY TƯƠNG TÁC VỚI SLAM
-        // ==========================================================
+        // CÁC HÀM BỔ SUNG ĐỂ PROXY TƯƠNG TÁC VỚI SLAM
         .def("_clear_local_map", [](pipeline::KissICP &self) {
-            self.VoxelMap().Clear(); // Gọi qua hàm accessor VoxelMap()
+            self.VoxelMap().Clear(); 
         })
         .def("_add_points_to_map", [](pipeline::KissICP &self, const std::vector<Eigen::Vector3d> &points) {
-            self.VoxelMap().AddPoints(points); // Gọi qua hàm accessor VoxelMap()
+            self.VoxelMap().AddPoints(points); 
         })
         .def("_set_last_pose", [](pipeline::KissICP &self, const Eigen::Matrix4d &T) {
-            self.pose() = Sophus::SE3d(T); // Gán trực tiếp qua hàm accessor pose()
+            self.pose() = Sophus::SE3d(T); 
         });
 
-    // 3. Global Utility Functions (Giống GenZ)
-    
-    // Hàm Voxel Downsample tiện ích
+    // =========================================================================
+    // 5. Global Utility Functions
+    // =========================================================================
     m.def("_voxel_down_sample", &VoxelDownsample, "frame"_a, "voxel_size"_a);
 
-    // Hàm Correct KITTI Scan (Dùng Lambda)
     m.def(
         "_correct_kitti_scan",
         [](const std::vector<Eigen::Vector3d> &frame) {
