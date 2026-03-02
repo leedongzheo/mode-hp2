@@ -44,7 +44,8 @@ KissICP::Vector3dVectorTuple KissICP::RegisterFrame(const std::vector<Eigen::Vec
 
     // --- [SỬA QUAN TRỌNG 2] ---
     // Trả về 2 mảng điểm Planar và Non-Planar để truyền qua Python lên Visualizer
-    return {planar_points, non_planar_points};
+    return {preprocessed_frame, source};
+    // return {planar_points, non_planar_points};
     // --------------------------
 }
 
