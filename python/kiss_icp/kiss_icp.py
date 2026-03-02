@@ -81,10 +81,14 @@ class KissICP:
         points = _to_cpp_points(frame)
         ts_list = list(timestamps) if timestamps is not None else []
 
-        # Lấy 2 mảng điểm từ C++
-        planar_out, non_planar_out = self._pipeline._register_frame(points, ts_list)
+        # Nhận đúng 2 mảng điểm từ C++: preprocessed_frame (deskewed) và source (voxelized)
+        deskewed_frame, source = self._pipeline._register_frame(points, ts_list)
         
-        return np.asarray(planar_out), np.asarray(non_planar_out)
+        return np.asarray(deskewed_frame), np.asarray(source)
+        # Lấy 2 mảng điểm từ C++
+        # planar_out, non_planar_out = self._pipeline._register_frame(points, ts_list)
+        
+        # return np.asarray(planar_out), np.asarray(non_planar_out)
 
     @property
     def last_pose(self) -> np.ndarray:
