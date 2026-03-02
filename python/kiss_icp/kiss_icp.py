@@ -63,12 +63,16 @@ def _to_cpp_points(frame: np.ndarray):
 
 
 class KissICP:
-    def __init__(self, config: Optional[KISSConfig] = None):
-        # 1. Quản lý Config
-        self.config = config or KISSConfig()
-        
-        # 2. Khởi tạo "Hộp đen" C++ (Monolithic Wrapper)
-        # Toàn bộ logic Preprocess -> Voxelize -> Register -> Map Update nằm trong này
+    def __init__(self, config=None):
+        # --- [THÊM ĐOẠN NÀY ĐỂ TỰ ĐỘNG NHẬN DIỆN VÀ CHUYỂN ĐỔI CONFIG CỦA SLAM] ---
+        if config is not None and not hasattr(config, "_to_cpp"):
+            # Nếu config truyền vào không có hàm _to_cpp (nghĩa là Pydantic config từ slam.py)
+            # Ta sẽ import hàm to_kiss_config để ép kiểu nó về dạng Dataclass
+            from kiss_icp.config.parser import to_kiss_config
+            self.config = to_kiss_config(config)
+        else:
+            self.config = config or KISSConfig()
+            
         self._pipeline = kiss_icp_pybind._KissICP(self.config._to_cpp())
 
     def register_frame(
