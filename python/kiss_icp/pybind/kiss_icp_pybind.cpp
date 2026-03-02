@@ -8,10 +8,12 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <sophus/se3.hpp>
 
 // Quan trọng: Include header chứa class KissICP Pipeline
 #include "kiss_icp/pipeline/KissICP.hpp" 
 #include "kiss_icp/core/Preprocessing.hpp" // Cho hàm VoxelDownsample global
+#include "kiss_icp/core/VoxelHashMap.hpp"  // [THÊM MỚI] Cho class VoxelHashMap
 #include "kiss_icp/metrics/Metrics.hpp"
 #include "stl_vector_eigen.h"
 
@@ -27,6 +29,27 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
         m, "_Vector3dVector", "std::vector<Eigen::Vector3d>",
         py::py_array_to_vectors_double<Eigen::Vector3d>);
 
+    // =========================================================================
+    // [THÊM MỚI] Binding cho VoxelHashMap (Dành cho mapping.py và slam.py)
+    // =========================================================================
+    py::class_<VoxelHashMap> internal_map(m, "_VoxelHashMap", "VoxelHashMap Binding");
+    internal_map
+        .def(py::init<double, double, unsigned int>(), 
+             "voxel_size"_a, "max_distance"_a, "max_points_per_voxel"_a)
+        .def("_clear", &VoxelHashMap::Clear)
+        .def("_empty", &VoxelHashMap::Empty)
+        // Lambda xử lý _update vì Python truyền vào ma trận 4x4, còn C++ nhận Sophus::SE3d
+        .def("_update", 
+            [](VoxelHashMap &self, const std::vector<Eigen::Vector3d> &points, const Eigen::Matrix4d &T) {
+                Sophus::SE3d pose(T);
+                self.Update(points, pose);
+            }, 
+            "points"_a, "pose"_a)
+        .def("_add_points", &VoxelHashMap::AddPoints, "points"_a)
+        .def("_remove_far_away_points", &VoxelHashMap::RemovePointsFarFromLocation, "origin"_a)
+        .def("_point_cloud", &VoxelHashMap::Pointcloud);
+
+
     // 1. Binding Config Struct (Giống _GenZConfig)
     py::class_<pipeline::KISSConfig>(m, "_KISSConfig")
         .def(py::init<>())
@@ -40,13 +63,10 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
         .def_readwrite("convergence_criterion", &pipeline::KISSConfig::convergence_criterion)
         .def_readwrite("max_num_threads", &pipeline::KISSConfig::max_num_threads)
         .def_readwrite("deskew", &pipeline::KISSConfig::deskew)
-        // [THÊM MỚI] Expose 3 tham số Adaptive Threshold cho Python
         .def_readwrite("adaptive_base", &pipeline::KISSConfig::adaptive_base)
         .def_readwrite("min_planarity_thr", &pipeline::KISSConfig::min_planarity_thr)
         .def_readwrite("max_planarity_thr", &pipeline::KISSConfig::max_planarity_thr)
-        // [THÊM MỚI] Expose biến reg_mode cho Python
         .def_readwrite("reg_mode", &pipeline::KISSConfig::reg_mode)
-        // [THÊM MỚI Ở ĐÂY] Expose biến min_points_pca cho Python
         .def_readwrite("min_points_pca", &pipeline::KISSConfig::min_points_pca);
 
     // 2. Binding Pipeline Class (Giống _GenZICP)
