@@ -83,6 +83,23 @@ PYBIND11_MODULE(kiss_icp_pybind, m) {
         // Helper: Trả về Delta (Vận tốc)
         .def("_last_delta", [](pipeline::KissICP &self) {
             return self.delta().matrix();
+        })
+        // ==========================================================
+        // [THÊM MỚI Ở ĐÂY] CÁC HÀM BỔ SUNG ĐỂ PROXY TƯƠNG TÁC VỚI SLAM
+        // ==========================================================
+        .def("_clear_local_map", [](pipeline::KissICP &self) {
+            self.local_map_.Clear(); 
+        })
+        .def("_add_points_to_map", [](pipeline::KissICP &self, const std::vector<Eigen::Vector3d> &points) {
+            self.local_map_.AddPoints(points);
+        })
+        .def("_set_last_pose", [](pipeline::KissICP &self, const Eigen::Matrix4d &T) {
+            Sophus::SE3d new_pose(T);
+            if (!self.poses_.empty()) {
+                self.poses_.back() = new_pose;
+            } else {
+                self.poses_.push_back(new_pose);
+            }
         });
 
     // 3. Global Utility Functions (Giống GenZ)
