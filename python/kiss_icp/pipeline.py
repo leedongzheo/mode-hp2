@@ -258,7 +258,14 @@ class OdometryPipeline:
         plt.savefig(os.path.join(self.results_dir, "trajectory.png"), dpi=300)
         plt.close()
 
+    # def _write_local_maps(self):
+    #     local_maps_dir = os.path.join(self.results_dir, "local_maps")
+    #     os.makedirs(local_maps_dir, exist_ok=True)
+    #     np.save(os.path.join(local_maps_dir, "local_map_final.npy"), self.odometry.local_map)
     def _write_local_maps(self):
         local_maps_dir = os.path.join(self.results_dir, "local_maps")
         os.makedirs(local_maps_dir, exist_ok=True)
-        np.save(os.path.join(local_maps_dir, "local_map_final.npy"), self.odometry.local_map)
+        
+        # Rút mảng numpy ra trước khi save
+        map_data = self.odometry.local_map.point_cloud() if hasattr(self.odometry.local_map, "point_cloud") else self.odometry.local_map
+        np.save(os.path.join(local_maps_dir, "local_map_final.npy"), map_data)
