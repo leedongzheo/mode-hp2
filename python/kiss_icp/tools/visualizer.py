@@ -1,6 +1,7 @@
 import datetime
 import importlib
 import os
+import gc
 from abc import ABC
 
 import numpy as np
@@ -46,8 +47,9 @@ class Kissualizer(StubVisualizer):
         self._pts_size = PTS_SIZE
         self._map_size = MAP_PTS_SIZE
         
-        self._block_execution = True
-        self._play_mode = False
+        # [QUAN TRỌNG CHO STREAM] Tắt tính năng chờ phím để ảnh chạy liên tục
+        self._block_execution = False
+        self._play_mode = True
         
         # Toggles
         self._toggle_planar = True
@@ -60,32 +62,46 @@ class Kissualizer(StubVisualizer):
         self._last_pose = np.eye(4)
         self._vis_infos = dict()
         self._selected_pose = ""
+        
+        self.frame_id = 0 # Thêm biến đếm số thứ tự ảnh
 
         self._initialize_visualizer()
 
     def update(self, planar_pts, non_planar_pts, target_map, pose, vis_infos: dict):
         self._vis_infos = dict(sorted(vis_infos.items(), key=lambda item: len(item[0])))
-        # Đổi tham số nhận vào
         self._update_geometries(planar_pts, non_planar_pts, target_map, pose)
         self._last_pose = pose
         
-        while self._block_execution:
+        # 1. Vẽ khung hình ra màn hình ảo Xvfb
+        self._ps.frame_tick()
+        
+        # 2. [VŨ KHÍ BÍ MẬT] Chụp ảnh màn hình lưu thẳng vào thư mục renders/
+        os.makedirs("renders", exist_ok=True)
+        filename = f"renders/scan_{self.frame_id:04d}.png"
+        self._ps.screenshot(filename)
+        self.frame_id += 1
+        
+        # Vòng lặp chờ (chỉ kích hoạt nếu bạn lỡ tay bấm Pause)
+        while self._block_execution and not self._play_mode:
             self._ps.frame_tick()
-            if self._play_mode:
-                break
-        self._block_execution = not self._block_execution
+            
+        # Giải phóng RAM cực kỳ quan trọng trên Cloud
+        gc.collect() 
         
     def close(self):
         self._ps.unshow()
 
     def _initialize_visualizer(self):
-        self._ps.set_program_name("Hybrid ICP Visualizer")
+        # [CẤU HÌNH STREAM] Ép kích thước cố định HD để ảnh không bị vỡ hoặc đen
+        self._ps.set_window_size(1280, 720) 
+        self._ps.set_program_name("Hybrid ICP Visualizer (Live Stream)")
         self._ps.init()
         self._ps.set_ground_plane_mode("none")
         self._ps.set_background_color(BACKGROUND_COLOR)
         self._ps.set_verbosity(0)
         self._ps.set_user_callback(self._main_gui_callback)
         self._ps.set_build_default_gui_panels(False)
+        print("🚀 Polyscope Visualizer initialized for Cloudflare Streaming!")
 
     def _update_geometries(self, planar_pts, non_planar_pts, target_map, pose):
         # 1. PLANAR POINTS (BLUE)
