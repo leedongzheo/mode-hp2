@@ -129,9 +129,12 @@ class Kissualizer(StubVisualizer):
             non_planar_cloud.set_enabled(self._toggle_non_planar)
 
         # 3. LOCAL MAP (GREEN)
-        if target_map.shape[0] > 0:
+        # [SỬA LỖI Ở ĐÂY] Rút mảng numpy array từ đối tượng LocalMapProxy
+        map_pts = target_map.point_cloud() if hasattr(target_map, "point_cloud") else target_map
+        
+        if map_pts.shape[0] > 0:
             map_cloud = self._ps.register_point_cloud(
-                "local_map", target_map, color=LOCAL_MAP_COLOR, point_render_mode="quad",
+                "local_map", map_pts, color=LOCAL_MAP_COLOR, point_render_mode="quad",
             )
             map_cloud.set_radius(self._map_size, relative=False)
             if self._global_view:
